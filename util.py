@@ -1,8 +1,10 @@
 import requests
 from bs4 import BeautifulSoup
 from config import *
+import time, json
 
 def login(username, password):
+	print "Logging in...."
 	try:
 		r = requests.get(HOME_URL,headers=headers)
 		if r.ok:
@@ -29,7 +31,8 @@ def login(username, password):
 				elif r.status_code == 200:
 					cookies = s.cookies
 					break
-			return cookies.get_dict()
+			if 'Hello ' + username in r.text:
+				return cookies.get_dict()
 	except Exception as e:
 		print e
 
@@ -71,6 +74,7 @@ def submit(cookies,pname,file,lang_code,contest=''):
 	return False
 	
 def logout(cookies):
+	print "Logging out..."
 	try:
 		r = requests.get(LOGOUT_URL,headers=headers,cookies=cookies)
 		return r.ok
@@ -78,5 +82,32 @@ def logout(cookies):
 		print e
 		return False
 
-def get_submission_status(response):
-	pass
+def get_submission_id(response):
+	soup = BeautifulSoup(response)
+	scripts = soup.find_all('script',{'src':None})
+	sc = None
+	for s in scripts:
+		if 'submission_id' in s.text:
+			sc = s
+	if not sc:
+		return False
+	text = sc.text
+	ind1 = text.find('submission_id =')
+	ind2 = text.find(';')
+	s_id = text[ind1+16:ind2]
+	return s_id
+	
+def get_submission_status(s_id):
+	try:
+		for i in range(5):
+			r = requests.get(SUBMISSION_STATUS_URL % s_id)
+			if r.ok:
+				data = json.loads(r.text)
+				if data['result_code'] == 'wait':
+					print "Your code is being executed.Please wait..."
+					time.sleep(5)
+					continue
+				else:
+					return data
+	except Exception as e:
+		print e
